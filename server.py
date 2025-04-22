@@ -9,8 +9,16 @@ import os
 
 app = Flask(__name__)
 
-# Configure CORS to allow requests from any origin
-CORS(app, resources={r"/*": {"origins": "*"}})
+# Update CORS configuration to be more explicit
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+
+# Add CORS headers to all responses
+@app.after_request
+def add_cors_headers(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+    return response
 
 # For debugging - root endpoint
 @app.route('/', methods=['GET'])
@@ -41,12 +49,8 @@ except Exception as e:
 def predict():
     # Handle preflight requests
     if request.method == 'OPTIONS':
-        response = app.make_default_options_response()
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-        response.headers.add('Access-Control-Allow-Methods', 'POST')
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        return response
-        
+        return '', 204  # Simplified OPTIONS response
+
     try:
         print("Received prediction request")
         
@@ -55,12 +59,16 @@ def predict():
             return jsonify({'char': '', 'word': 'Model Error', 'sentence': 'Model not loaded properly'}), 200
             
         # Check request content
+        if not request.is_json:
+            print("Request is not JSON")
+            return jsonify({'char': '', 'word': 'Error', 'sentence': 'Invalid request format'}), 400
+            
         data = request.get_json()
         print("Request data type:", type(data))
         
         if not data or 'video' not in data:
             print("Missing video data in request")
-            return jsonify({'char': '', 'word': 'Error', 'sentence': 'No video data provided'}), 200
+            return jsonify({'char': '', 'word': 'Error', 'sentence': 'No video data provided'}), 400
             
         # Process image
         try:
