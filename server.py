@@ -9,16 +9,15 @@ import os
 
 app = Flask(__name__)
 
-# Configure CORS to allow requests from any origin (for development and production)
-CORS(app, resources={
-    r"/predict": {"origins": ["https://talksy-frontend-new.onrender.com", "http://localhost:8000", "*"]}
-})
+# Configure CORS to allow requests from any origin
+CORS(app, resources={r"/*": {"origins": "*"}})
 
-# For debugging
+# For debugging - root endpoint
 @app.route('/', methods=['GET'])
 def index():
     return jsonify({"status": "API is running", "endpoints": ["/predict"]}), 200
 
+# Load the model
 try:
     model = tf.keras.models.load_model('sign_word_model.h5')
     print("Model loaded successfully. Input shape:", model.input_shape, "Output shape:", model.output_shape)
@@ -36,12 +35,11 @@ try:
         print(f"Warning: Vocabulary size ({len(gesture_to_word)}) does not match output classes ({num_classes})")
 except Exception as e:
     print(f"Error loading model: {e}")
-    # For deployment, provide a fallback
     model = None
 
 @app.route('/predict', methods=['POST', 'OPTIONS'])
 def predict():
-    # Handle preflight request
+    # Handle preflight requests
     if request.method == 'OPTIONS':
         response = app.make_default_options_response()
         response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
@@ -50,39 +48,47 @@ def predict():
         return response
         
     try:
-        # For debugging
         print("Received prediction request")
         
         # Check if model is loaded
         if model is None:
             return jsonify({'char': '', 'word': 'Model Error', 'sentence': 'Model not loaded properly'}), 200
             
-        data = request.json
+        # Check request content
+        data = request.get_json()
+        print("Request data type:", type(data))
+        
         if not data or 'video' not in data:
-            return jsonify({'char': '', 'word': '', 'sentence': ''}), 200
+            print("Missing video data in request")
+            return jsonify({'char': '', 'word': 'Error', 'sentence': 'No video data provided'}), 200
             
-        # Decode base64 image
-        img_data = data['video'].split(',')[1]  # Remove data URL prefix
-        img_data = base64.b64decode(img_data)
-        img = Image.open(BytesIO(img_data)).convert('L')  # Convert to grayscale
-        img = img.resize((64, 64), Image.LANCZOS)  # Resize to 64x64
-        img = np.array(img) / 255.0  # Normalize to [0, 1]
-        img = np.expand_dims(img, axis=(0, -1))  # Add batch and channel dimensions: (1, 64, 64, 1)
-        
-        # Prediction
-        prediction = model.predict(img)
-        predicted_index = np.argmax(prediction[0])
-        
-        # Map index to gesture (assuming indices 0 to 5 correspond to A, B, O, D, L, W)
-        gestures = list(gesture_to_word.keys())
-        if 0 <= predicted_index < len(gestures):
-            word = gesture_to_word[gestures[predicted_index]]
-            sentence = f"Detected: {word}"
-        else:
-            word = 'Unknown'
-            sentence = 'Unknown gesture'
+        # Process image
+        try:
+            img_data = data['video'].split(',')[1]  # Remove data URL prefix
+            img_data = base64.b64decode(img_data)
+            img = Image.open(BytesIO(img_data)).convert('L')  # Convert to grayscale
+            img = img.resize((64, 64), Image.LANCZOS)  # Resize to 64x64
+            img = np.array(img) / 255.0  # Normalize to [0, 1]
+            img = np.expand_dims(img, axis=(0, -1))  # Add batch and channel dimensions
             
-        return jsonify({'char': '', 'word': word, 'sentence': sentence}), 200
+            # Make prediction
+            prediction = model.predict(img)
+            predicted_index = np.argmax(prediction[0])
+            
+            # Map to word
+            gestures = list(gesture_to_word.keys())
+            if 0 <= predicted_index < len(gestures):
+                word = gesture_to_word[gestures[predicted_index]]
+                sentence = f"Detected: {word}"
+            else:
+                word = 'Unknown'
+                sentence = 'Unknown gesture'
+                
+            print(f"Prediction complete: {word}")
+            return jsonify({'char': '', 'word': word, 'sentence': sentence}), 200
+        except Exception as e:
+            print(f"Image processing error: {e}")
+            return jsonify({'char': '', 'word': 'Error', 'sentence': f'Image processing error: {str(e)}'}), 200
     except Exception as e:
         print(f"Prediction error: {e}")
         return jsonify({'error': str(e)}), 500
