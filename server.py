@@ -7,7 +7,12 @@ from io import BytesIO
 from PIL import Image
 
 app = Flask(__name__)
-CORS(app, resources={r"/predict": {"origins": "http://localhost:8000"}})  # Allow localhost:8000
+# Update CORS to allow requests from your deployed frontend
+CORS(app, resources={r"/predict": {"origins": [
+    "https://talksy-frontend-new.onrender.com",
+    "http://localhost:8000"  # Keep local development support
+]}})
+
 try:
     model = tf.keras.models.load_model('sign_word_model.h5')
     print("Model loaded successfully. Input shape:", model.input_shape, "Output shape:", model.output_shape)
