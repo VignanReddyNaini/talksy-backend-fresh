@@ -10,10 +10,8 @@ import os
 app = Flask(__name__)
 #CORS(app, resources={r"/*": {"origins": "https://talksy-frontend.vercel.app"}}, supports_credentials=True)
 CORS(app, origins=[
-    "https://talksy-frontend.vercel.app",
     "https://talksy-frontend-new.onrender.com"
 ])
-
 
 @app.after_request
 def add_cors_headers(response):
