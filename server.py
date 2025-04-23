@@ -8,7 +8,12 @@ from PIL import Image
 import os
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "https://talksy-frontend.vercel.app"}}, supports_credentials=True)
+#CORS(app, resources={r"/*": {"origins": "https://talksy-frontend.vercel.app"}}, supports_credentials=True)
+CORS(app, resources={r"/predict": {"origins": [
+    "http://localhost:8000",
+    "https://exciting-jaybird-enough.ngrok-free.app",
+    "https://vignanreddynaini.github.io"
+]}})
 
 @app.after_request
 def add_cors_headers(response):
