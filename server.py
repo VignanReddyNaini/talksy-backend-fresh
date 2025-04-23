@@ -12,7 +12,7 @@ app = Flask(__name__)
 CORS(app, resources={r"/predict": {"origins": [
     "http://localhost:8000",
     "https://exciting-jaybird-enough.ngrok-free.app",
-    "https://vignanreddynaini.github.io"
+    "https://talksy-frontend-new.onrender.com"
 ]}})
 
 @app.after_request
