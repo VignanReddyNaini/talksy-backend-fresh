@@ -8,14 +8,21 @@ from PIL import Image
 import os
 
 app = Flask(__name__)
-#CORS(app, resources={r"/*": {"origins": "https://talksy-frontend.vercel.app"}}, supports_credentials=True)
+
+# ✅ Enable CORS for both frontend URLs
 CORS(app, origins=[
+    "https://talksy-frontend.vercel.app",
     "https://talksy-frontend-new.onrender.com"
 ])
 
 @app.after_request
 def add_cors_headers(response):
-    response.headers.add('Access-Control-Allow-Origin', 'https://talksy-frontend.vercel.app')
+    origin = request.headers.get('Origin')
+    if origin in [
+        "https://talksy-frontend.vercel.app",
+        "https://talksy-frontend-new.onrender.com"
+    ]:
+        response.headers.add('Access-Control-Allow-Origin', origin)
     response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
     response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
     return response
@@ -24,6 +31,7 @@ def add_cors_headers(response):
 def index():
     return jsonify({"status": "API is running", "endpoints": ["/predict"]}), 200
 
+# Load the trained model
 try:
     model = tf.keras.models.load_model('sign_word_model.h5')
     print("Model loaded successfully. Input shape:", model.input_shape, "Output shape:", model.output_shape)
@@ -52,28 +60,28 @@ def predict():
         if not data or 'video' not in data:
             print("Missing video data")
             return jsonify({'char': '', 'word': 'Error', 'sentence': 'No video data provided'}), 400
-        try:
-            img_data = data['video'].split(',')[1]
-            img_data = base64.b64decode(img_data)
-            img = Image.open(BytesIO(img_data)).convert('L')
-            img = img.resize((64, 64), Image.LANCZOS)
-            img = np.array(img) / 255.0
-            img = np.expand_dims(img, axis=(0, -1))
-            prediction = model.predict(img)
-            predicted_index = np.argmax(prediction[0])
-            print(f"Prediction input shape: {img.shape}, output: {prediction}")
-            gestures = list(gesture_to_word.keys())
-            if 0 <= predicted_index < len(gestures):
-                word = gesture_to_word[gestures[predicted_index]]
-                sentence = f"Detected: {word}"
-            else:
-                word = 'Unknown'
-                sentence = 'Unknown gesture'
-            print(f"Prediction complete: {word}")
-            return jsonify({'char': '', 'word': word, 'sentence': sentence}), 200
-        except Exception as e:
-            print(f"Image processing error: {e}")
-            return jsonify({'char': '', 'word': 'Error', 'sentence': f'Image processing error: {str(e)}'}), 200
+
+        # Process the base64 image
+        img_data = data['video'].split(',')[1]
+        img_data = base64.b64decode(img_data)
+        img = Image.open(BytesIO(img_data)).convert('L')
+        img = img.resize((64, 64), Image.LANCZOS)
+        img = np.array(img) / 255.0
+        img = np.expand_dims(img, axis=(0, -1))
+
+        # Predict
+        prediction = model.predict(img)
+        predicted_index = np.argmax(prediction[0])
+        gestures = list(gesture_to_word.keys())
+        if 0 <= predicted_index < len(gestures):
+            word = gesture_to_word[gestures[predicted_index]]
+            sentence = f"Detected: {word}"
+        else:
+            word = 'Unknown'
+            sentence = 'Unknown gesture'
+        print(f"Prediction complete: {word}")
+        return jsonify({'char': '', 'word': word, 'sentence': sentence}), 200
+
     except Exception as e:
         print(f"Prediction error: {e}")
         return jsonify({'error': str(e)}), 500
